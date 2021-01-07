@@ -2,6 +2,9 @@ defmodule Rumbl.Accounts do
   @moduledoc """
   The Accounts context.
   """
+
+  import Ecto.Query
+
   alias Rumbl.Repo
   alias Rumbl.Accounts.User
 
@@ -23,6 +26,11 @@ defmodule Rumbl.Accounts do
     %User{}
     |> User.registration_changeset(attrs)
     |> Repo.insert()
+  end
+
+  def list_users_with_ids(ids) do
+    from(u in User, where: u.id in ^ids)
+    |> Repo.all()
   end
 
   def get_user(id) do

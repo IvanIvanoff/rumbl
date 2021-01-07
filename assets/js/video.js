@@ -1,4 +1,5 @@
 import Player from "./player"
+import { Presence } from "phoenix"
 
 let Video = {
   init(socket, element) {
@@ -19,7 +20,22 @@ let Video = {
     let msgContainer = document.getElementById("msg-container")
     let msgInput = document.getElementById("msg-input")
     let postButton = document.getElementById("msg-submit")
-    let vidChannel = socket.channel("videos:" + videoId)
+    let lastSeenId = 0
+    let userList = document.getElementById("user-list")
+    let vidChannel = socket.channel("videos:" + videoId, () => {
+      return { last_seen_id: lastSeenId }
+    })
+
+    let presence = new Presence(vidChannel)
+
+    presence.onSync(() => {
+      userList.innerHTML = presence
+        .list((id, { metas: [first, ...rest], user: user }) => {
+          let count = rest.length + 1
+          return `<li>${user.username}: (${count})</li>`
+        })
+        .join("")
+    })
 
     vidChannel.on("ping", ({ count }) => console.log("PING", count))
 
@@ -30,15 +46,32 @@ let Video = {
         .receive("error", (e) => console.log(e))
       msgInput.value = ""
     })
+
+    msgContainer.addEventListener("click", (e) => {
+      e.preventDefault()
+      let seconds =
+        e.target.getAttribute("data-seek") ||
+        e.target.parentNode.getAttribute("data-seek")
+      if (!seconds) {
+        return
+      }
+      Player.seekTo(seconds)
+    })
+
     vidChannel.on("new_annotation", (resp) => {
+      lastSeenId = resp.id
       this.renderAnnotation(msgContainer, resp)
     })
 
     vidChannel
       .join()
-      .receive("ok", (resp) =>
+      .receive("ok", (resp) => {
+        let ids = resp.annotations.map((ann) => ann.id)
+        if (ids.length > 0) {
+          lastSeenId = Math.max(...ids)
+        }
         this.scheduleMessages(msgContainer, resp.annotations)
-      )
+      })
       .receive("error", (reason) => console.log("join failed", reason))
   },
 
@@ -52,6 +85,7 @@ let Video = {
     let template = document.createElement("div")
     template.innerHTML = `
       <a href="#" data-seek="${this.esc(at)}">
+        [${this.formatTime(at)}]
         <b>${this.esc(user.username)}</b>: ${this.esc(body)}
       </a>
     `

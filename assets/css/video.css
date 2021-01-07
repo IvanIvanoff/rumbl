@@ -3,4 +3,6 @@
 }
 #msg-container {
   min-height: 260px;
+  max-height: 260px;
+  overflow: scroll;
 }
